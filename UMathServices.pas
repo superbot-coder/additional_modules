@@ -15,12 +15,12 @@ type
   TProgress = procedure(Done: real);
 
   {Собственно экспортные функции}
-function ulFact(First: string): string;
-function ulSum(First, Second: string): string;
-function ulSub(First, Second: string): string;
-function ulMPL(First, Second: string): string;
-function ulPower(First, Second: string): string;
-function UlDiv(First, Second: string; Precision: integer): string;
+function ulFact(First: string): string;           // 
+function ulSum(First, Second: string): string;    // сложить, напрмер 2+2=4
+function ulSub(First, Second: string): string;    // Отнять, например, 4-2=2
+function ulMPL(First, Second: string): string;    // Умножить, например, 2*3=6
+function ulPower(First, Second: string): string;  // Степень, например,  2^3=8
+function UlDiv(First, Second: string; Precision: integer): string; // Разделить, например, 10/3 = 3.333333...
   {Precision - не истинная точность а количество знаков учитываемых
   после запятой сверх тех которые значимы. Все знаки уже существующие в
   делимом и делителе в любом случае учитываются}
