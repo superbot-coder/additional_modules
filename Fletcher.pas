@@ -1,10 +1,10 @@
 ﻿unit Fletcher;
 
 (*******************************************************************************
-  Implementation of agorhythm "Fletcher" без оптимизации
+  Implementation of agorhythm "Fletcher" no optimization
   Autor by SUPERBOT
-  Source Linck https://en.wikipedia.org/wiki/Fletcher%27s_checksum
-  Source Linck https://ru.wikipedia.org/wiki/Контрольная_сумма_Флетчера
+  Source link https://en.wikipedia.org/wiki/Fletcher%27s_checksum
+  Source link https://ru.wikipedia.org/wiki/Контрольная_сумма_Флетчера
 *******************************************************************************)
 
 interface
