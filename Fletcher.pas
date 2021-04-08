@@ -26,14 +26,15 @@ Uses Unit1;
 function Fletcher8(AStrData: PAnsiChar): UInt8;
 var
   sum1, sum2: UInt8;
-  ch: AnsiChar;
+  c: Cardinal;
 begin
   sum1 := 0;
   sum2 := 0;
-  for ch in AnsiString(PAnsiChar(AStrData)^) do
+  for c := 1 to Length(PAnsiChar(AStrData)) do
   begin
-    sum1 := (sum1 + Byte(ch)) mod $0F;
+    sum1 := (sum1 + Byte(AStrData^)) mod $0F;
     sum2 := (sum2 + sum1) mod $0F;
+    Inc(AStrData);
   end;
   Result := (sum2 shl 4) or sum1;
 end;
@@ -42,64 +43,96 @@ end;
 function Fletcher16(AStrData: PAnsiChar): UInt16;
 var
   sum1, sum2 : UInt16;
-  ch: AnsiChar;
+  c: Cardinal;
 begin
   sum1 := 0;
   sum2 := 0;
-  for ch in AnsiString(PAnsiChar(AStrData)^) do
+  for c := 1 to Length(PAnsiChar(AStrData)) do
   begin
-    sum1 := (sum1 + Byte(ch)) mod $FF;
+    sum1 := (sum1 + Byte(AStrData^)) mod $FF;
     sum2 := (sum2 + sum1) mod $FF;
+    Inc(AStrData);
   end;
   Result := (sum2 shl 8) or sum1;
 end;
 
 {-------------------------------- Fletcher32 ----------------------------------}
 function Fletcher32(AStrData: PAnsiChar): UInt32;
-var
-  sum1, sum2, len, i: UInt32;
 type
   PUInt16 = ^UInt16;
+var
+  sum1, sum2, len, i: UInt32;
+  sum0: Uint16;
+  rem: Byte; // Remainder of division
+  PData: PUint16;
 begin
-  sum1   := 0;
-  sum2   := 0;
-  len    := Length(PAnsiChar(AStrData));
+  sum1 := 0;
+  sum2 := 0;
+  len  := Length(PAnsiChar(AStrData));
+  // Uint16 размер чтения входящего блока 2 байта
+  rem  := (len mod 2);
+  PData := PUint16(AStrData);
 
   // Определение четности
-  if (Len mod 2) = 0 then len := len div 2
+  if rem = 0 then len := len div 2
   else len := (len div 2) + 1;
 
   for i := 1 to len do
   begin
-    sum1 := (sum1 + PUint16(AStrData)^) mod $FFFF;
+    sum0 := PData^;
+    // Определяем, что блок последний
+    // Сдвигает байты влево, а затем обратно,
+    // что бы почисть от возможного мусора в последнем блоке
+    // если размер блока выходт за размер входных данных
+    if (i = len) and (rem <> 0) then sum0 := (sum0 shl 8) shr 0;
+    sum1 := (sum1 + sum0) mod $FFFF;
     sum2 := (sum2 + sum1) mod $FFFF;
-    Inc(PUint16(AStrData));
+    Inc(PData);
   end;
+
   Result := (sum2 shl 16) or sum1;
 end;
 
 {------------------------------- Fletcher64 -----------------------------------}
 function Fletcher64(AStrData: PAnsiChar): UInt64;
-var
-  sum1, sum2: UInt64;
-  len, i: UInt32;
 Type
   PUint32 = ^Uint32;
+var
+  sum1, sum2: UInt64;
+  sum0, len, i: UInt32;
+  rem, shift: Byte; //rem - Remainder of division
+  PData : PUint32;
+
 begin
-  sum1 := 0;
-  sum2 := 0;
-  len := Length(PAnsiChar(AStrData));
+  sum1  := 0;
+  sum2  := 0;
+  shift := 0;
+  len   := Length(PAnsiChar(AStrData));
+  rem   := (len mod 4); // Uint32 размер чтения входящего блока 4 байта
+  PData := PUint32(AStrData);
 
   // Определение четности
-  if (len mod 4) = 0 then len := len div 4
-  else Len := (Len div 4) + 1;
+  if rem = 0 then len := len div 4
+  else
+  begin
+    // если rem <> 0 вычисляем сдвиг (SizeOf(sum0) - rem) * 8 Bit
+    shift := (4 - rem) * 8; 
+    Len := (Len div 4) + 1;
+  end;
 
   for i := 1 to len do
   begin
-    sum1 := (sum1 + PUint32(AStrData)^) mod $FFFFFFFF;
+    sum0  := PData^; // PUint32(AStrData);
+    // Определяем, что блок последний
+    // Сдвигает байты влево, а затем обратно,
+    // что бы почисть от возможного мусора в последнем блоке
+    // если размер блока выходт за размер входных данных
+    if (i = len) and (rem <> 0) then sum0 := (sum0 shl shift) shr shift;
+    sum1 := (sum1 + sum0) mod $FFFFFFFF;
     sum2 := (sum2 + sum1) mod $FFFFFFFF;
-    Inc(PUint32(AStrData));
+    Inc(PData);
   end;
+
   Result := (sum2 shl 32) or sum1;
 end;
 
