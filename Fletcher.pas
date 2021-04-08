@@ -7,6 +7,7 @@
   Source link https://github.com/superbot-coder/additional_modules/blob/master/Fletcher.pas
   Source link https://en.wikipedia.org/wiki/Fletcher%27s_checksum
   Source link https://ru.wikipedia.org/wiki/Контрольная_сумма_Флетчера
+  Last Update: 08.04.2021
 *******************************************************************************)
 
 interface
