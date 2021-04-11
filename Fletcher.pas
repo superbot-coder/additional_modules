@@ -21,9 +21,9 @@ type
 function Fletcher8(AStrData: PAnsiChar): UInt8;
 function Fletcher16(AStrData: PAnsiChar): UInt16;
 function Fletcher32(AStrData: PAnsiChar): UInt32;
-function Fletcher32Rev(AStrData: PAnsiChar): UInt32;
+function Fletcher32Rev(AStrData: PAnsiChar): UInt32; //Reverce
 function Fletcher64(AStrData: PAnsiChar): UInt64;
-function Fletcher64Rev(AStrData: PAnsiChar): UInt64;
+function Fletcher64Rev(AStrData: PAnsiChar): UInt64; //Reverce 
 
 implementation
 
@@ -205,9 +205,8 @@ begin
 
   for i := 1 to len do
   begin
-    sum  := PData^;
-    // разворачиваем байты в другой порядок
-	// Uint32[dcba] -> Uint32[abcd]
+    sum := PData^;
+    // разворачиваем байты в другой порядок Uint32[dcba] -> Uint32[abcd]
 	for j := 0 to 3 do
     begin
       b := (b xor b) or (sum shr (j * 8));
