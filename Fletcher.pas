@@ -120,8 +120,8 @@ begin
   for i := 1 to len do
   begin
     sum := PData^;
-    // разворачиваем байты в другой порядок
-	// [ba] -> [ab]
+	// Разворачиваем байты в другой порядок
+	// Uint16 [ba] -> [ab]
     sum0 := ((sum0 xor sum0) or sum) shl 8;
     sum0 := sum0 or (sum shr 8);
     // Определяем, что блок последний
@@ -164,7 +164,7 @@ begin
 
   for i := 1 to len do
   begin
-    sum0  := PData^;
+    sum0 := PData^;
     // Определяем, что блок последний
     // Сдвигает байты влево, а затем обратно,
     // что бы почисть от возможного мусора в последнем блоке
@@ -206,8 +206,8 @@ begin
   for i := 1 to len do
   begin
     sum := PData^;
-    // разворачиваем байты в другой порядок Uint32[dcba] -> Uint32[abcd]
-	for j := 0 to 3 do
+    //Разворачиваем байты в другой порядок Uint32[dcba] -> Uint32[abcd]
+    for j := 0 to 3 do
     begin
       b := (b xor b) or (sum shr (j * 8));
       sum0 := (sum0 or b);
