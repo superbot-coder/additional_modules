@@ -37,7 +37,7 @@ var
 begin
   sum1 := 0;
   sum2 := 0;
-  for c := 1 to Length(PAnsiChar(AStrData)) do
+  for c := 1 to Length(AStrData) do
   begin
     sum1 := (sum1 + Byte(AStrData^)) mod $0F;
     sum2 := (sum2 + sum1) mod $0F;
@@ -54,7 +54,7 @@ var
 begin
   sum1 := 0;
   sum2 := 0;
-  for c := 1 to Length(PAnsiChar(AStrData)) do
+  for c := 1 to Length(AStrData) do
   begin
     sum1 := (sum1 + Byte(AStrData^)) mod $FF;
     sum2 := (sum2 + sum1) mod $FF;
@@ -73,7 +73,7 @@ var
 begin
   sum1 := 0;
   sum2 := 0;
-  len  := Length(PAnsiChar(AStrData));
+  len  := Length(AStrData);
   // Uint16 размер чтения входящего блока 2 байта
   rem  := (len mod 2);
   PData := PUint16(AStrData);
@@ -108,7 +108,7 @@ var
 begin
   sum1 := 0;
   sum2 := 0;
-  len  := Length(PAnsiChar(AStrData));
+  len  := Length(AStrData);
   // Uint16 размер чтения входящего блока 2 байта
   rem  := (len mod 2);
   PData := PUint16(AStrData);
@@ -149,7 +149,7 @@ begin
   sum1  := 0;
   sum2  := 0;
   shift := 0;
-  len   := Length(PAnsiChar(AStrData));
+  len   := Length(AStrData);
   rem   := (len mod 4); // Uint32 размер чтения входящего блока 4 байта
   PData := PUint32(AStrData);
 
@@ -190,7 +190,7 @@ begin
   sum1  := 0;
   sum2  := 0;
   shift := 0;
-  len   := Length(PAnsiChar(AStrData));
+  len   := Length(AStrData);
   rem   := (len mod 4); // Uint32 размер чтения входящего блока 4 байта
   PData := PUint32(AStrData);
 
