@@ -69,10 +69,10 @@ end;
 {----------------------------- FindProcessByExeName ---------------------------}
 function FindProcessByExeName(ExeName: String; fullPath: Boolean): Integer;
 var
-  aSH: THandle;
+  aSH  : THandle;
   aPE32: TProcessEntry32;
-  Next: BOOL;
-  st: String;
+  Next : BOOL;
+  st   : String;
 begin
    Result := 0;
    aSH := CreateToolhelp32Snapshot(TH32CS_SNAPALL, 0);
