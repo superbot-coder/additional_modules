@@ -10,22 +10,106 @@ unit EnumerateResource;
 interface
 
 Uses
-   System.SysUtils, System.Classes, Winapi.Windows, JSON;
+   System.SysUtils, System.Classes, Winapi.Windows, JSON, Error;
 
-procedure GetResourceTypes(hModule: THandle;     // hModule := LoadLibraryEx()
-                           ResMap: TJSONObject); // Resource Mam to JSON format
+type
+
+  //структура RT_ICON
+  GRPICONDIRENTRY = packed record
+    bWidth       :Byte;                 //ширина иконки в пикселях (если больше 255, то 0)
+    bHeight      :Byte;                 //высота иконки в пикселях (если больше 255, то 0)
+    bColorCount  :Byte;                 //число цветов (если больше 255, то 0)
+    bReserved    :Byte;                 //зарезервировано, всегда 0
+    wPlanes      :Word;                 //?
+    wBitCount    :Word;                 //глубина цвета, в битах
+    dwBytesInRes :DWORD;                //размер в байтах битового образа иконки
+    nId          :Word;                 //ID ресурса иконки
+  end;
+  PGRPICONDIRENTRY = ^GRPICONDIRENTRY;
+
+  GRPICONDIR = packed record
+    idReserved : Word; //зарезервировано, всегда 0
+    idType     : Word; //тип образа: 1 - иконка, 0 - курсор
+    idCount    : Word; //число иконок типа RT_ICON
+    idEntries  : array [0..0] of GRPICONDIRENTRY;
+  end;
+
+ { GRPICONDIR = packed record
+    idReserved :Word; //зарезервировано, всегда 0
+    idType     :Word; //тип образа: 1 - иконка, 0 - курсор
+    idCount    :Word; //число иконок типа RT_ICON
+  end; }
+  PGRPICONDIR = ^GRPICONDIR;
+
+type
+  TResourceMap = class(TObject)
+  private
+    FResMap : TJSONObject;
+    FModule : THandle;
+    function GetResMapStr: string;
+  public
+    property JSONResMap: TJSONObject read FResMap;
+    property JSONResMapStr: string read GetResMapStr;
+    constructor Create(FileName: String);
+    destructor Destroy;
+  end;
+
+
+
+function StockResourceType(restype: PChar): string;
+procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject); // hModule := LoadLibraryEx(); Resource Mam to JSON format
+
+function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
 
 implementation
 
-function enumResNamesProc(module: HMODULE; restype, resname: PChar; list: TJSONArray): Integer; stdcall;
+USES Unit1;
+
+{------------------------------  -----------------------------------------}
+function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
+var
+  hModule: THandle;
 begin
- if HiWord(Cardinal(resname)) <> 0 then
-   list.Add(resname)
- else
-   list.Add(Format('#%d', [loword(Cardinal(resname))]));
- Result := 1;
+  hModule := LoadLibraryEx(FileName,0 , LOAD_LIBRARY_AS_DATAFILE);
+  if hModule = 0 then
+    RaiseLastOSError(GetLastError);
+  try
+    Result := LoadImage(hModule, ResName, IMAGE_ICON, X, Y, LR_DEFAULTCOLOR)
+   {
+    if HiWord(Cardinal(ResName)) <> 0 then
+      Result := LoadImage(hModule, ResName, IMAGE_ICON, X, Y, LR_DEFAULTCOLOR)
+    else
+      Result := LoadImage(hModule, MAKEINTRESOURCE(ResName), IMAGE_ICON, X, Y, LR_DEFAULTCOLOR);
+      }
+  finally
+    FreeLibrary(hModule);
+  end;
 end;
 
+{----------------------------- enumResNamesProc -------------------------------}
+function enumResNamesProc(module: HMODULE; restype, resname: PChar; SubMap: TJSONArray): Integer; stdcall;
+var
+  item: TJSONObject;
+begin
+ {if HiWord(Cardinal(resname)) <> 0 then
+   list.Add(resname)
+ else
+   list.Add(Format('#%d', [loword(Cardinal(resname))])); }
+
+ item := TJSONObject.Create;
+
+ if HiWord(Cardinal(resname)) <> 0 then
+   item.AddPair('name', resname)  // SubMap.Add(TJSONObject.Create(TJSONPair.Create('name', resname)))
+ else
+   item.AddPair('id', TJSONNumber.Create(Cardinal(resname))); //SubMap.Add(TJSONObject.Create(TJSONPair.Create('id', IntToStr(Cardinal(resname))) ));
+
+ SubMap.Add(item);
+ item   := Nil;
+ Result := 1;
+
+end;
+
+{------------------------------ StockResourceType -----------------------------}
 Function StockResourceType(restype: PChar): string;
 const
  restypenames: Array [1..24] of String =
@@ -64,23 +148,25 @@ begin
    Result := 'UNKNOWN';
 end;
 
+{------------------------------ enumResTypesProc ------------------------------}
 function enumResTypesProc(module: HMODULE; restype: PChar; ResMap: TJSONObject): Integer; stdcall;
 var
   SubMap: TJSONArray;
   rt: String;
 begin
- SubMap := TJSONArray.Create;
+  SubMap := TJSONArray.Create;
 
- if HiWord(Cardinal(restype)) <> 0 then
-   rt := restype
- else
-   rt := StockResourcetype(restype);
- EnumResourceNames(module, restype, @enumResNamesProc, Integer(SubMap));
- ResMap.AddPair(rt, SubMap);
- Result := 1;
+  if HiWord(Cardinal(restype)) <> 0 then
+    rt := restype
+  else
+    rt := StockResourcetype(restype);
+  EnumResourceNames(module, restype, @enumResNamesProc, Integer(SubMap));
+  ResMap.AddPair(rt, SubMap);
+  SubMap := Nil;
+  Result := 1;
 end;
 
-
+{------------------------------ GetResourceTypes ------------------------------}
 procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject);
 begin
   if ResMap = Nil then Exit;
@@ -89,6 +175,149 @@ begin
     RaiseLastOSError(GetLastError);
     //
   end;
+end;
+
+{ ResourceMap }
+
+constructor TResourceMap.Create(FileName: String);
+Var
+  arGrIcon  : TJSONArray;
+  hResInfo  : THandle;
+  hResLoad  : THandle;
+  PGID      : PGRPICONDIR;
+  PGIDE     : PGRPICONDIRENTRY;
+  szData    : Cardinal;
+  IconCount : SmallInt;
+  i, j, id  : SmallInt;
+  s_temp    : String;
+  s_clr     : String;
+
+  arIcons   : TJSONArray;
+  ItemObj   : TJSONObject;
+
+
+begin
+  inherited Create;
+
+  FResMap  := TJSONObject.Create;
+  arGrIcon := TJSONArray.Create;
+
+  FModule :=  LoadLibraryEx(PChar(FileName),0 , LOAD_LIBRARY_AS_DATAFILE);
+  if FModule = 0 then
+  begin
+    RaiseLastOSError(GetLastError, SystemErrorMessage(GetLastError));
+    Exit;
+  end;
+
+  if not EnumResourceTypes(FModule, @enumResTypesProc, Integer(FResMap)) then
+  begin
+    RaiseLastOSError(GetLastError, SystemErrorMessage(GetLastError));
+    Exit;
+  end;
+
+
+  if FResMap.FindValue(StockResourceType(RT_GROUP_ICON)) = Nil then
+  begin
+    exit;
+  end;
+
+  arGrIcon := FResMap.GetValue(StockResourceType(RT_GROUP_ICON)) as TJSONArray;
+  for i := 0 to arGrIcon.Count -1 do
+  begin
+
+    // Поиск ресурса по имени
+    if arGrIcon.Items[i].FindValue('name') <> nil then
+    begin
+      s_temp := (arGrIcon.Items[i] as TJSONObject).GetValue('name').Value;
+      //Form1.log('name: ' + s_temp);
+      hResInfo := FindResource(FModule, PChar(s_temp), RT_GROUP_ICON);
+    end;
+
+    // Поиск ресурса по Id
+    if arGrIcon.Items[i].FindValue('id') <> nil then
+    begin
+      id := (arGrIcon.Items[i] as TJSONObject).GetValue('id').Value.ToInteger;
+      //Form1.log('id: ' + IntToStr(id));
+      hResInfo := FindResource(FModule, MAKEINTRESOURCE(Id), RT_GROUP_ICON);
+    end;
+
+    if hResInfo = 0 then
+    begin
+      // RaiseLastOSError(GetLastError, 'function FindResource() = 0 ' + SystemErrorMessage(GetLastError));
+      continue;
+    end;
+
+    hResLoad := LoadResource(FModule, hResInfo);
+    if hResLoad = 0 then
+    begin
+      //RaiseLastOSError(GetLastError, 'function LoadResource() = 0 ' + SystemErrorMessage(GetLastError));
+      Continue; // Exit;
+    end;
+
+    // функция LockResource блокирует указанный ресурс в памяти.
+    PGID := LockResource(hResLoad);
+    if Not Assigned(PGID) then begin
+      //RaiseLastOSError(GetLastError, 'function LockResource() = Nil' + SystemErrorMessage(GetLastError));
+      Continue;
+    end;
+
+    //check size of resource
+    szData := SizeofResource(FModule, hResInfo);
+    if szData = 0 then
+    begin
+      Continue;
+    end;
+
+
+   IconCount := PGRPICONDIR(PGID)^.idCount;
+   arIcons   := TJSONArray.Create;
+
+   for j := 0 to IconCount -1 do
+   begin
+     arIcons.Add(TJSONObject.Create);
+
+     with PGRPICONDIR(PGID)^ do
+     begin
+       case idEntries[j].wBitCount of
+         4 : s_clr := '16';
+         8 : s_clr := '256';
+         16: s_clr := '16.8mil';
+       end;
+
+       with (arIcons.Items[arIcons.Count-1] as TJSONObject) do
+       begin
+         AddPair('id', TJSONNumber.Create(idEntries[j].nId));
+         AddPair('width', TJSONNumber.Create(idEntries[j].bWidth));
+         AddPair('height', TJSONNumber.Create(idEntries[j].bHeight));
+         AddPair('bit', TJSONNumber.Create(idEntries[j].wBitCount));
+         AddPair('colors', s_clr);
+       end;
+     end;
+   end;
+
+   (arGrIcon.Items[i] as TJSONObject).AddPair('icons', arIcons);
+   arIcons := Nil;
+
+  end;
+
+
+
+
+
+
+end;
+
+destructor TResourceMap.Destroy;
+begin
+  inherited Destroy;
+  FreeAndNil(FResMap);
+  FreeLibrary(FModule);
+  //FreeResource(FhResLoad);
+end;
+
+function TResourceMap.GetResMapStr: string;
+begin
+  Result := FResMap.ToJSON;
 end;
 
 end.
