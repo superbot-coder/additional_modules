@@ -1,5 +1,5 @@
 //**********************************************************************8***//
-//   Modul modifed by SUPERBOT 18.03.2023                                   //
+//   Modul modifed by SUPERBOT 28.03.2023                                   //
 //   Https://GitHub.com/Superbot-coder                                      //
 //   Get Resoure: https://www.programmersforum.ru/showthread.php?t=70470    //
 //**************************************************************************//
@@ -58,12 +58,11 @@ type
 
 function StockResourceType(restype: PChar): string;
 procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject); // hModule := LoadLibraryEx(); Resource Mam to JSON format
-
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
 
 implementation
 
-USES Unit1;
+//USES Unit1;
 
 {------------------------------  -----------------------------------------}
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
@@ -191,11 +190,7 @@ Var
   i, j, id  : SmallInt;
   s_temp    : String;
   s_clr     : String;
-
   arIcons   : TJSONArray;
-  ItemObj   : TJSONObject;
-
-
 begin
   inherited Create;
 
@@ -268,14 +263,12 @@ begin
       Continue;
     end;
 
-
    IconCount := PGRPICONDIR(PGID)^.idCount;
    arIcons   := TJSONArray.Create;
 
    for j := 0 to IconCount -1 do
    begin
      arIcons.Add(TJSONObject.Create);
-
      with PGRPICONDIR(PGID)^ do
      begin
        case idEntries[j].wBitCount of
@@ -283,7 +276,6 @@ begin
          8 : s_clr := '256';
          16: s_clr := '16.8mil';
        end;
-
        with (arIcons.Items[arIcons.Count-1] as TJSONObject) do
        begin
          AddPair('id', TJSONNumber.Create(idEntries[j].nId));
@@ -299,11 +291,6 @@ begin
    arIcons := Nil;
 
   end;
-
-
-
-
-
 
 end;
 
