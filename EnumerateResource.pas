@@ -55,7 +55,6 @@ type
   end;
 
 
-
 function StockResourceType(restype: PChar): string;
 procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject); // hModule := LoadLibraryEx(); Resource Mam to JSON format
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
@@ -209,7 +208,6 @@ begin
     RaiseLastOSError(GetLastError, SystemErrorMessage(GetLastError));
     Exit;
   end;
-
 
   if FResMap.FindValue(StockResourceType(RT_GROUP_ICON)) = Nil then
   begin
