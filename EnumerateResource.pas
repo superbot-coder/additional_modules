@@ -4,16 +4,11 @@
 //   Get Resoure: https://www.programmersforum.ru/showthread.php?t=70470    //
 //**************************************************************************//
 
-
 unit EnumerateResource;
-
 interface
-
 Uses
    System.SysUtils, System.Classes, Winapi.Windows, Vcl.Dialogs, JSON, Error;
-
 type
-
   //структура RT_ICON
   GRPICONDIRENTRY = packed record
     bWidth       :Byte;                 //ширина иконки в пикселях (если больше 255, то 0)
@@ -26,32 +21,32 @@ type
     nId          :Word;                 //ID ресурса иконки
   end;
   PGRPICONDIRENTRY = ^GRPICONDIRENTRY;
-
   GRPICONDIR = packed record
     idReserved : Word; //зарезервировано, всегда 0
     idType     : Word; //тип образа: 1 - иконка, 0 - курсор
     idCount    : Word; //число иконок типа RT_ICON
     idEntries  : array [0..0] of GRPICONDIRENTRY;
   end;
-
  { GRPICONDIR = packed record
     idReserved :Word; //зарезервировано, всегда 0
     idType     :Word; //тип образа: 1 - иконка, 0 - курсор
     idCount    :Word; //число иконок типа RT_ICON
   end; }
   PGRPICONDIR = ^GRPICONDIR;
-
 type
   TResourceMap = class(TObject)
   private
     FSTLog  : TStrings;
     FResMap : TJSONObject;
     FModule : THandle;
+    FhResInfo : THandle;
+    FPGID   : PGRPICONDIR;
     function GetResMapStr: string;
     function GetLog: String;
     procedure log(MsgStr: String);
-  public
     procedure MapGroupIcon;
+  public
+    function GetIconDafault(Width, Height: Word): HICON;
     property ViewLog: String read GetLog;
     property JSONResMap: TJSONObject read FResMap;
     property JSONResMapStr: string read GetResMapStr;
@@ -59,17 +54,11 @@ type
     destructor Destroy;
   end;
 
-
-
 function StockResourceType(restype: PChar): string;
 procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject); // hModule := LoadLibraryEx(); Resource Mam to JSON format
-
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
-
 implementation
-
 USES Unit1;
-
 {----------------------------- LoadIconFromExe  -------------------------------}
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
 var
@@ -90,7 +79,6 @@ begin
     FreeLibrary(hModule);
   end;
 end;
-
 {----------------------------- enumResNamesProc -------------------------------}
 function enumResNamesProc(module: HMODULE; restype, resname: PChar; SubMap: TJSONArray): Integer; stdcall;
 var
@@ -100,20 +88,15 @@ begin
    list.Add(resname)
  else
    list.Add(Format('#%d', [loword(Cardinal(resname))])); }
-
  item := TJSONObject.Create;
-
  if HiWord(Cardinal(resname)) <> 0 then
    item.AddPair('name', resname)  // SubMap.Add(TJSONObject.Create(TJSONPair.Create('name', resname)))
  else
    item.AddPair('id', TJSONNumber.Create(Cardinal(resname))); //SubMap.Add(TJSONObject.Create(TJSONPair.Create('id', IntToStr(Cardinal(resname))) ));
-
  SubMap.Add(item);
  item   := Nil;
  Result := 1;
-
 end;
-
 {------------------------------ StockResourceType -----------------------------}
 Function StockResourceType(restype: PChar): string;
 const
@@ -143,7 +126,6 @@ const
     'RT_HTML',         // MakeIntResource(23)
     'RT_MANIFEST'      // MakeIntResource(24)
   );
-
 var
   resid: Cardinal absolute restype;
 begin
@@ -152,7 +134,6 @@ begin
  else
    Result := 'UNKNOWN';
 end;
-
 {------------------------------ enumResTypesProc ------------------------------}
 function enumResTypesProc(module: HMODULE; restype: PChar; ResMap: TJSONObject): Integer; stdcall;
 var
@@ -160,7 +141,6 @@ var
   rt: String;
 begin
   SubMap := TJSONArray.Create;
-
   if HiWord(Cardinal(restype)) <> 0 then
     rt := restype
   else
@@ -170,7 +150,6 @@ begin
   SubMap := Nil;
   Result := 1;
 end;
-
 {------------------------------ GetResourceTypes ------------------------------}
 procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject);
 begin
@@ -181,9 +160,7 @@ begin
     //
   end;
 end;
-
 { ResourceMap }
-
 constructor TResourceMap.Create(FileName: String);
 Var
   arGrIcon  : TJSONArray;
@@ -199,133 +176,23 @@ Var
   arIcons   : TJSONArray;
 begin
   inherited Create;
-
   FSTLog   := TStringList.Create;
   FResMap  := TJSONObject.Create;
-
   FModule :=  LoadLibraryEx(PChar(FileName),0 , LOAD_LIBRARY_AS_DATAFILE);
   if FModule = 0 then
   begin
     //RaiseLastOSError(GetLastError, SystemErrorMessage(GetLastError));
-
     Exit;
   end;
-
   if not EnumResourceTypes(FModule, @enumResTypesProc, Integer(FResMap)) then
   begin
     // RaiseLastOSError(GetLastError, SystemErrorMessage(GetLastError));
     Exit;
   end;
 
-
   MapGroupIcon;
 
-  (*
-  if FResMap.FindValue(StockResourceType(RT_GROUP_ICON)) = Nil then
-  begin
-    //
-    Exit;
-  end;
-
-  arGrIcon := FResMap.GetValue(StockResourceType(RT_GROUP_ICON)) as TJSONArray;
-  for i := 0 to arGrIcon.Count -1 do
-  begin
-
-    // Поиск ресурса по имени
-    if arGrIcon.Items[i].FindValue('name') <> nil then
-    begin
-      s_temp := (arGrIcon.Items[i] as TJSONObject).GetValue('name').Value;
-      //Form1.log('name: ' + s_temp);
-      hResInfo := FindResource(FModule, PChar(s_temp), RT_GROUP_ICON);
-    end
-    else
-    begin
-      // Error message...
-      Continue;
-    end;
-
-    // Поиск ресурса по Id
-    if arGrIcon.Items[i].FindValue('id') <> nil then
-    begin
-      id := (arGrIcon.Items[i] as TJSONObject).GetValue('id').Value.ToInteger;
-      //Form1.log('id: ' + IntToStr(id));
-      hResInfo := FindResource(FModule, MAKEINTRESOURCE(Id), RT_GROUP_ICON);
-    end
-    else
-    begin
-      // Error Message ...
-      Continue;
-    end;
-
-    if hResInfo = 0 then
-    begin
-      // Send Error message...
-      continue;
-    end;
-
-    hResLoad := LoadResource(FModule, hResInfo);
-    if hResLoad = 0 then
-    begin
-      // Send Error message...
-      Continue; // Exit;
-    end;
-
-    // функция LockResource блокирует указанный ресурс в памяти.
-    PGID := LockResource(hResLoad);
-    if Not Assigned(PGID) then begin
-      // Send error message...
-      FreeResource(hResLoad);
-      Continue;
-    end;
-
-    //check size of resource
-    szData := SizeofResource(FModule, hResInfo);
-    if szData = 0 then
-    begin
-      // Send error message...
-      FreeResource(hResLoad);
-      Continue;
-    end;
-
-   IconCount := PGRPICONDIR(PGID)^.idCount;
-   arIcons   := TJSONArray.Create;
-
-   for j := 0 to IconCount -1 do
-   begin
-     arIcons.Add(TJSONObject.Create);
-
-     with PGRPICONDIR(PGID)^ do
-     begin
-       case idEntries[j].wBitCount of
-         4 : s_clr := '16';
-         8 : s_clr := '256';
-         12: s_clr := '4096';
-         16: s_clr := '65.536 (High Color)';
-         24: s_clr := '16.8mln (True Color)';
-         32: s_clr := '4.3bln (True Color)';
-       end;
-
-       with (arIcons.Items[arIcons.Count-1] as TJSONObject) do
-       begin
-         AddPair('id', TJSONNumber.Create(idEntries[j].nId));
-         AddPair('width', TJSONNumber.Create(idEntries[j].bWidth));
-         AddPair('height', TJSONNumber.Create(idEntries[j].bHeight));
-         AddPair('bit', TJSONNumber.Create(idEntries[j].wBitCount));
-         AddPair('colors', s_clr);
-       end;
-     end;
-   end;
-
-   (arGrIcon.Items[i] as TJSONObject).AddPair('icons', arIcons);
-   arIcons := Nil;
-   PGID := Nil;
-   FreeResource(hResLoad);
-
-  end; {for i := 0 to arGrIcon.Count -1 do}
-  *)
-
 end;
-
 destructor TResourceMap.Destroy;
 begin
   inherited Destroy;
@@ -333,6 +200,52 @@ begin
   FreeLibrary(FModule);
   FSTLog.Free;
   //FreeResource(FhResLoad);
+end;
+
+function TResourceMap.GetIconDafault(Width, Height: Word): HICON;
+Var
+  hResInfo  : Thandle;
+  hResData  : THandle;
+  pLockData : Pointer;
+  IconId    : integer;
+  f_arg     : string;
+begin
+  f_arg := 'TResourceMap.GetIconDafault(' + IntToStr(Width) + ',' + IntToStr(Height) + ')';
+  if FResMap = Nil then
+  begin
+    log(f_arg + ' => FResMap = Nil');
+    Exit;
+  end;
+
+  IconId := LookupIconIdFromDirectoryEx(PByte(FPGID), true, Width, Height, 0);
+  log(f_arg + ' IconId = ' + IntToStr(IconId));
+
+  hResInfo := FindResource(FModule, MAKEINTRESOURCE(IconId), RT_ICON);
+  if hResInfo = 0 then
+  begin
+    log(f_arg);
+    log(' => func. FindResource() = 0');
+    exit;
+  end;
+
+  hResData := LoadResource(FModule, hResInfo);
+  if hResData = 0 then
+  begin
+    log(f_arg);
+    log(' => func. LoadResource() = 0, IconId: ' + IntToStr(IconId));
+    exit;
+  end;
+
+  pLockData := LockResource(hResData);
+  if Not Assigned(pLockData) then
+  begin
+    log(f_arg);
+    log(' => LockResource() = Nil, IconId: ' + IntToStr(IconId));
+    exit;
+  end;
+
+  Result := CreateIconfromResourceEx(pLockData, SizeofResource(FModule, hResInfo), True, $00030000, 0, 0, 0);
+
 end;
 
 function TResourceMap.GetLog: String;
@@ -344,7 +257,6 @@ function TResourceMap.GetResMapStr: string;
 begin
   Result := FResMap.ToJSON;
 end;
-
 procedure TResourceMap.log(MsgStr: String);
 begin
   FSTLog.Add(MsgStr);
@@ -368,7 +280,7 @@ begin
   if FResMap = Nil then
   begin
     // send error message...
-    Form1.log('FResMap = Nil');
+    Form1.log('TResourceMap.MapGroupIcon => FResMap = Nil');
     exit;
   end;
 
@@ -378,45 +290,32 @@ begin
     Log('FResMap.FindValue(StockResourceType(RT_GROUP_ICON)) = nil');
     Exit;
   end;
-
   arGrIcon := TJSONArray.Create;
   arGrIcon := FResMap.GetValue(StockResourceType(RT_GROUP_ICON)) as TJSONArray;
 
   //log('arGrIcon = ' + arGrIcon.ToString);
-
   for i := 0 to arGrIcon.Count -1 do
   begin
-
     // Поиск ресурса по имени
     if arGrIcon.Items[i].FindValue('name') <> nil then
     begin
       ResName := (arGrIcon.Items[i] as TJSONObject).GetValue('name').Value;
-      log('FindValue(''name''): ' + resName);
+      // log('FindValue(''name''): ' + resName);
       hResInfo := FindResource(FModule, PChar(ResName), RT_GROUP_ICON);
-    end
-    else
-    begin
-      // Error message...
-      log(' FindValue(''name'') = Nil');
     end;
 
     // Поиск ресурса по Id
     if arGrIcon.Items[i].FindValue('id') <> nil then
     begin
       id := (arGrIcon.Items[i] as TJSONObject).GetValue('id').Value.ToInteger;
-      log('Ok. FindValue(''id''): ' + IntToStr(id));
+      // log('Ok. FindValue(''id''): ' + IntToStr(id));
       hResInfo := FindResource(FModule, MAKEINTRESOURCE(Id), RT_GROUP_ICON);
-    end
-    else
-    begin
-      // Error Message ...
-      log('FindValue(''id'') = nil');
     end;
 
     if hResInfo = 0 then
     begin
       // Send Error message...
-      log('hResInfo = 0');
+      log('TResourceMap.MapGroupIcon => func FindResource() = 0');
       continue;
     end;
 
@@ -427,7 +326,6 @@ begin
       log('LoadResource hResLoad = 0');
       Continue; // Exit;
     end;
-
     // функция LockResource блокирует указанный ресурс в памяти.
     PGID := LockResource(hResLoad);
     if Not Assigned(PGID) then
@@ -438,6 +336,9 @@ begin
       Continue;
     end;
 
+    // safe as defiult group icon (first icon)
+    if i = 0 then  FPGID := PGID;
+
     //check size of resource
     szData := SizeofResource(FModule, hResInfo);
     if szData = 0 then
@@ -447,14 +348,11 @@ begin
       FreeResource(hResLoad);
       Continue;
     end;
-
    IconCount := PGRPICONDIR(PGID)^.idCount;
    arIcons   := TJSONArray.Create;
-
    for j := 0 to IconCount -1 do
    begin
      arIcons.Add(TJSONObject.Create);
-
      with PGRPICONDIR(PGID)^ do
      begin
        case idEntries[j].wBitCount of
@@ -462,10 +360,9 @@ begin
          8 : s_clr := '256';
          12: s_clr := '4096';
          16: s_clr := '65.536 (High Color)';
-         24: s_clr := '16.8mln (True Color)';
-         32: s_clr := '4.3bln (True Color)';
+         24: s_clr := '16.8 mln (True Color)';
+         32: s_clr := '4.3 bln (True Color)';
        end;
-
        with (arIcons.Items[arIcons.Count-1] as TJSONObject) do
        begin
          AddPair('id', TJSONNumber.Create(idEntries[j].nId));
@@ -476,12 +373,10 @@ begin
        end;
      end;
    end;
-
    (arGrIcon.Items[i] as TJSONObject).AddPair('icons', arIcons);
    arIcons := Nil;
-   PGID    := Nil;
+   if i > 0 then PGID  := Nil;
    FreeResource(hResLoad);
-
   end; {for i := 0 to arGrIcon.Count -1 do}
 
 end;
