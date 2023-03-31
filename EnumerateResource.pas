@@ -40,13 +40,16 @@ type
     FResMap : TJSONObject;
     FModule : THandle;
     FhResInfo : THandle;
-    FPGID   : PGRPICONDIR;
+    FPGID    : PGRPICONDIR;
+    FFuncArg : String;
     function GetResMapStr: string;
     function GetLog: String;
     procedure log(MsgStr: String);
     procedure MapGroupIcon;
   public
     function GetIconDafault(Width, Height: Word): HICON;
+    function GetBestIcon(GrIndex: Word; Width, Height: Word): HICON;
+    function GetIconIndex(id: Integer): HICON;
     property ViewLog: String read GetLog;
     property JSONResMap: TJSONObject read FResMap;
     property JSONResMapStr: string read GetResMapStr;
@@ -195,56 +198,132 @@ begin
 end;
 destructor TResourceMap.Destroy;
 begin
-  inherited Destroy;
   FreeAndNil(FResMap);
   FreeLibrary(FModule);
   FSTLog.Free;
   //FreeResource(FhResLoad);
+  inherited Destroy;
+end;
+
+function TResourceMap.GetBestIcon(GrIndex, Width, Height: Word): HICON;
+var
+  arGrIcon : TJSONArray;
+  IconId   : Integer;
+  hResInfo : Thandle;
+  hResLoad : THandle;
+  PGID     : PGRPICONDIR;
+  ResName  : String;
+  id       : SmallInt;
+begin
+  FFuncArg := 'GetBestIcon(' + IntToStr(GrIndex) + ',' +
+              IntToStr(Width) + ',' + IntToStr(Height) + ')';
+  try
+    if FResMap = Nil then Exit;
+
+    arGrIcon := FResMap.FindValue(StockResourceType(RT_GROUP_ICON)) as TJSONArray;
+    if arGrIcon = nil then Exit;
+    if arGrIcon.Count <= GrIndex then Exit;
+
+    // Поиск ресурса по имени
+    if arGrIcon.Items[GrIndex].FindValue('name') <> nil then
+    begin
+      ResName  := (arGrIcon.Items[GrIndex] as TJSONObject).GetValue('name').Value;
+      log(' => Ok. FindValue(''name''): ' + resName);
+      hResInfo := FindResource(FModule, PChar(ResName), RT_GROUP_ICON);
+    end;
+
+    // Поиск ресурса по Id
+    if arGrIcon.Items[GrIndex].FindValue('id') <> nil then
+    begin
+      id := (arGrIcon.Items[GrIndex] as TJSONObject).GetValue('id').Value.ToInteger;
+      log(' => Ok. FindValue(''id''): ' + IntToStr(id));
+      hResInfo := FindResource(FModule, MAKEINTRESOURCE(Id), RT_GROUP_ICON);
+    end;
+
+    if hResInfo = 0 then
+    begin
+      log(' => FindResource() = 0');
+      Exit;
+    end;
+
+    hResLoad := LoadResource(FModule, hResInfo);
+    if hResLoad = 0 then
+    begin
+      log(' => LoadResource hResLoad = 0');
+      Exit;
+    end;
+    // функция LockResource блокирует указанный ресурс в памяти.
+    PGID := LockResource(hResLoad);
+    if Not Assigned(PGID) then
+    begin
+      log(' => Assigned(PGID) = false');
+      Exit;
+    end;
+
+    IconId := LookupIconIdFromDirectoryEx(PByte(PGID), true, Width, Height, 0);
+    Result := GetIconIndex(IconId);
+
+  finally
+    FFuncArg := '';
+    FreeResource(hResLoad);
+  end;
 end;
 
 function TResourceMap.GetIconDafault(Width, Height: Word): HICON;
 Var
-  hResInfo  : Thandle;
-  hResData  : THandle;
-  pLockData : Pointer;
   IconId    : integer;
   f_arg     : string;
 begin
   f_arg := 'TResourceMap.GetIconDafault(' + IntToStr(Width) + ',' + IntToStr(Height) + ')';
-  if FResMap = Nil then
+  if FModule = 0 then
   begin
-    log(f_arg + ' => FResMap = Nil');
+    log(f_arg + ' => FModule = 0');
     Exit;
   end;
 
   IconId := LookupIconIdFromDirectoryEx(PByte(FPGID), true, Width, Height, 0);
   log(f_arg + ' IconId = ' + IntToStr(IconId));
 
-  hResInfo := FindResource(FModule, MAKEINTRESOURCE(IconId), RT_ICON);
-  if hResInfo = 0 then
-  begin
-    log(f_arg);
-    log(' => func. FindResource() = 0');
-    exit;
-  end;
+  Result := GetIconIndex(IconId);
 
-  hResData := LoadResource(FModule, hResInfo);
-  if hResData = 0 then
-  begin
-    log(f_arg);
-    log(' => func. LoadResource() = 0, IconId: ' + IntToStr(IconId));
-    exit;
-  end;
+end;
 
-  pLockData := LockResource(hResData);
-  if Not Assigned(pLockData) then
-  begin
-    log(f_arg);
-    log(' => LockResource() = Nil, IconId: ' + IntToStr(IconId));
-    exit;
-  end;
+function TResourceMap.GetIconIndex(id: Integer): HICON;
+var
+  hResInfo  : Thandle;
+  hResData  : THandle;
+  pLockData : Pointer;
 
-  Result := CreateIconfromResourceEx(pLockData, SizeofResource(FModule, hResInfo), True, $00030000, 0, 0, 0);
+begin
+  FFuncArg := 'TResourceMap.GetIconIndex(' + IntToStr(id) + ')';
+
+ try
+   hResInfo := FindResource(FModule, MAKEINTRESOURCE(id), RT_ICON);
+   if hResInfo = 0 then
+   begin
+     log(' => func. FindResource() = 0');
+     exit;
+   end;
+
+   hResData := LoadResource(FModule, hResInfo);
+   if hResData = 0 then
+   begin
+     log(' => func. LoadResource() = 0, IconId: ' + IntToStr(id));
+     exit;
+   end;
+
+   pLockData := LockResource(hResData);
+   if Not Assigned(pLockData) then
+   begin
+     log(' => LockResource() = Nil, IconId: ' + IntToStr(id));
+     exit;
+   end;
+
+   Result := CreateIconfromResourceEx(pLockData, SizeofResource(FModule, hResInfo), True, $00030000, 0, 0, 0);
+
+ finally
+   FFuncArg := '';
+ end;
 
 end;
 
@@ -259,6 +338,7 @@ begin
 end;
 procedure TResourceMap.log(MsgStr: String);
 begin
+  if FFuncArg <> '' then FSTLog.Add(FFuncArg);
   FSTLog.Add(MsgStr);
 end;
 
