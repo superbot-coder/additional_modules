@@ -60,8 +60,9 @@ type
 function StockResourceType(restype: PChar): string;
 procedure GetResourceTypes(hModule: THandle; ResMap: TJSONObject); // hModule := LoadLibraryEx(); Resource Mam to JSON format
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
+
 implementation
-USES Unit1;
+
 {----------------------------- LoadIconFromExe  -------------------------------}
 function LoadIconFromExe(FileName, ResName: PChar; X, Y: Integer): Cardinal;
 var
@@ -179,8 +180,8 @@ Var
   arIcons   : TJSONArray;
 begin
   inherited Create;
-  FSTLog   := TStringList.Create;
-  FResMap  := TJSONObject.Create;
+  FSTLog  := TStringList.Create;
+  FResMap := TJSONObject.Create;
   FModule :=  LoadLibraryEx(PChar(FileName),0 , LOAD_LIBRARY_AS_DATAFILE);
   if FModule = 0 then
   begin
@@ -360,7 +361,7 @@ begin
   if FResMap = Nil then
   begin
     // send error message...
-    Form1.log('TResourceMap.MapGroupIcon => FResMap = Nil');
+    log('TResourceMap.MapGroupIcon => FResMap = Nil');
     exit;
   end;
 
